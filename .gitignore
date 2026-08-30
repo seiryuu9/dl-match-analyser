@@ -1,3 +1,9 @@
 .venv/
 .idea/
 data/
+
+replay_parser/.gradle/
+replay_parser/build/
+replay_parser/.idea/
+replay_parser/*.iml
+replay_parser/replays/
