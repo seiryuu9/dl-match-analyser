@@ -7,3 +7,4 @@ replay_parser/build/
 replay_parser/.idea/
 replay_parser/*.iml
 replay_parser/replays/
+replay_parser/output/
