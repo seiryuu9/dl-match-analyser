@@ -47,6 +47,7 @@ public class App {
     private final Map<Integer, Integer> structureTeams = new HashMap<>();
     private final Map<Integer, Integer> patronLifeState = new HashMap<>();
     private final Map<Integer, Integer> midBossLifeState = new HashMap<>();
+    private final Map<Integer, Boolean> hasRejuvenatorMap = new HashMap<>();
 
     private final List<Map<String, Object>> deaths = new ArrayList<>();
     private final List<Map<String, Object>> structuresDestroyed = new ArrayList<>();
@@ -54,6 +55,7 @@ public class App {
     private final List<Map<String, Object>> midBossKills = new ArrayList<>();
     private final List<Map<String, Object>> riftCaptures = new ArrayList<>();
     private final List<Map<String, Object>> urnPickups = new ArrayList<>();
+    private final List<Map<String, Object>> rejuvenatorClaims = new ArrayList<>();
 
     private final Map<Integer, Double> pendingRiftSpawns = new HashMap<>();
     private final Map<Integer, Double> pendingUrnSpawns = new HashMap<>();
@@ -193,6 +195,22 @@ public class App {
             if (e.hasProperty("m_iHeroDamage")) stats.heroDamage = (Integer) e.getProperty("m_iHeroDamage");
             if (e.hasProperty("m_iObjectiveDamage")) stats.objectiveDamage = (Integer) e.getProperty("m_iObjectiveDamage");
             if (e.hasProperty("m_iGoldNetWorth")) stats.goldNetWorth = (Integer) e.getProperty("m_iGoldNetWorth");
+
+            if (e.hasProperty("m_bHasRejuvenator")) {
+                Boolean hasRejuvenator = (Boolean) e.getProperty("m_bHasRejuvenator");
+                Boolean oldValue = hasRejuvenatorMap.get(e.getIndex());
+
+                if (Boolean.TRUE.equals(hasRejuvenator) && !Boolean.TRUE.equals(oldValue)) {
+                    double t = tickToSeconds(ctx.getTick());
+                    Map<String, Object> rc = new LinkedHashMap<>();
+                    rc.put("controller_index", e.getIndex());
+                    rc.put("team", controllerTeams.get(e.getIndex()));
+                    rc.put("game_time_s", t);
+                    rejuvenatorClaims.add(rc);
+                }
+
+                hasRejuvenatorMap.put(e.getIndex(), hasRejuvenator);
+            }
         }
 
         if (typeName.equals("CNPC_Boss_Tier3") && e.hasProperty("m_lifeState")) {
@@ -304,6 +322,7 @@ public class App {
         output.put("mid_boss_kills", midBossKills);
         output.put("rift_captures", riftCaptures);
         output.put("urn_pickups", urnPickups);
+        output.put("rejuvenator_claims", rejuvenatorClaims);
         output.put("stat_snapshots", statSnapshots);
 
         var gson = new GsonBuilder().setPrettyPrinting().create();
@@ -328,6 +347,7 @@ public class App {
                 app.midBossKills.size() + " mid boss kills, " +
                 app.riftCaptures.size() + " rift captures, " +
                 app.urnPickups.size() + " urn pickups, " +
+                app.rejuvenatorClaims.size() + " rejuvenator claims, " +
                 app.statSnapshots.size() + " stat snapshots to " + outputPath);
     }
 }
