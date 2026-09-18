@@ -155,14 +155,21 @@ public class App {
                         d.put("player_index", e.getIndex());
                         d.put("game_time_s", t);
                         d.put("death_duration_s", null);
+                        d.put("respawn_full_health", null);
                         deaths.add(d);
                     } else if (newState == 0 && oldState != null && oldState == 2) {
                         Double deathTime = lastDeathTime.get(e.getIndex());
                         if (deathTime != null) {
+                            double respawnDuration = t - deathTime;
+                            Integer health = e.hasProperty("m_iHealth") ? (Integer) e.getProperty("m_iHealth") : null;
+                            Integer healthMax = e.hasProperty("m_iHealthMax") ? (Integer) e.getProperty("m_iHealthMax") : null;
+                            boolean fullHealth = health != null && healthMax != null && health.equals(healthMax);
+
                             for (int i = deaths.size() - 1; i >= 0; i--) {
                                 Map<String, Object> d = deaths.get(i);
                                 if (d.get("player_index").equals(e.getIndex()) && d.get("death_duration_s") == null) {
-                                    d.put("death_duration_s", t - deathTime);
+                                    d.put("death_duration_s", respawnDuration);
+                                    d.put("respawn_full_health", fullHealth);
                                     break;
                                 }
                             }
