@@ -82,6 +82,15 @@ public class App {
         return m.find() ? m.group().trim() : null;
     }
 
+    private String resolveUsernameForPawn(int pawnIndex) {
+        for (Map.Entry<Integer, Integer> entry : controllerToPawn.entrySet()) {
+            if (entry.getValue() == pawnIndex) {
+                return userinfoNames.get(entry.getKey() - 1);
+            }
+        }
+        return null;
+    }
+
     @OnStringTableEntry("userinfo")
     public void onStringTableEntry(StringTable table, int index, String key, ByteString value) {
         String name = extractName(value);
@@ -153,6 +162,7 @@ public class App {
                         Map<String, Object> d = new LinkedHashMap<>();
                         d.put("team", playerTeams.get(e.getIndex()));
                         d.put("player_index", e.getIndex());
+                        d.put("username", resolveUsernameForPawn(e.getIndex()));
                         d.put("game_time_s", t);
                         d.put("death_duration_s", null);
                         d.put("respawn_full_health", null);
