@@ -1,10 +1,23 @@
+# Python / Virtual Environment
 .venv/
+__pycache__/
+*.pyc
 .idea/
 data/
 
+# Java / Replay Parser
 replay_parser/.gradle/
 replay_parser/build/
 replay_parser/.idea/
 replay_parser/*.iml
 replay_parser/replays/
 replay_parser/output/
+
+# Node / React (Tauri Frontend)
+dl-analyser-app/node_modules/
+dl-analyser-app/dist/
+dl-analyser-app/dist-ssr/
+dl-analyser-app/*.local
+
+# Tauri Rust Build Artifacts
+dl-analyser-app/src-tauri/target/
