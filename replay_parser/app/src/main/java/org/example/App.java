@@ -32,6 +32,13 @@ public class App {
             "CCitadel_Destroyable_Building", "InnerTower"
     );
 
+    private static final Map<Integer, String> LANE_COLORS = Map.of(
+            1, "yellow",
+            2, "green",
+            3, "blue",
+            4, "green"
+    );
+
     private static final Pattern PRINTABLE_RUN = Pattern.compile("[\\x20-\\x7E]{2,32}");
 
     @Insert
@@ -45,6 +52,7 @@ public class App {
     private final Map<Integer, String> userinfoNames = new TreeMap<>();
 
     private final Map<Integer, Integer> structureTeams = new HashMap<>();
+    private final Map<Integer, String> structureLanes = new HashMap<>();
     private final Map<Integer, Integer> patronLifeState = new HashMap<>();
     private final Map<Integer, Integer> midBossLifeState = new HashMap<>();
     private final Map<Integer, Boolean> hasRejuvenatorMap = new HashMap<>();
@@ -110,8 +118,16 @@ public class App {
             }
         }
 
-        if (STRUCTURE_TYPES.containsKey(typeName) && e.hasProperty("m_iTeamNum")) {
-            structureTeams.put(e.getIndex(), (Integer) e.getProperty("m_iTeamNum"));
+        if (STRUCTURE_TYPES.containsKey(typeName)) {
+            if (e.hasProperty("m_iTeamNum")) {
+                structureTeams.put(e.getIndex(), (Integer) e.getProperty("m_iTeamNum"));
+            }
+            if (e.hasProperty("m_iLane")) {
+                Integer lane = (Integer) e.getProperty("m_iLane");
+                if (lane != null && LANE_COLORS.containsKey(lane)) {
+                    structureLanes.put(e.getIndex(), LANE_COLORS.get(lane));
+                }
+            }
         }
 
         if (typeName.equals("CCitadelItemKothSpawner")) {
@@ -299,6 +315,7 @@ public class App {
             Map<String, Object> s = new LinkedHashMap<>();
             s.put("structure_type", STRUCTURE_TYPES.get(typeName));
             s.put("team", structureTeams.get(e.getIndex()));
+            s.put("lane", structureLanes.get(e.getIndex()));
             s.put("destroyed_time_s", tickToSeconds(ctx.getTick()));
             structuresDestroyed.add(s);
         }
