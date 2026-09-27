@@ -1,138 +1,206 @@
 import { useState } from "react";
-import "./App.css";
+
+interface Player {
+  username: string;
+  hero: string;
+  team: number;
+}
 
 function App() {
-    const [username, setUsername] = useState("");
-    const [fileName, setFileName] = useState<string | null>(null);
-    const [filePath, setFilePath] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const [report, setReport] = useState<any | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [filePath, setFilePath] = useState<string | null>(null);
+  
+  const [step, setStep] = useState<"upload" | "select_user" | "report">("upload");
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const [availablePlayers, setAvailablePlayers] = useState<Player[]>([]);
+  const [selectedUsername, setSelectedUsername] = useState("");
+  const [report, setReport] = useState<any | null>(null);
 
-    // Mock file selection for now (later we will use Tauri's dialog API to pick .dem files)
-    const handleFileMock = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setFileName(file.name);
-            setFilePath(file.path); // Tauri exposes path on files
-        }
-    };
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setFileName(file.name);
+      setFilePath((file as any).path || file.name);
+      
+      setIsLoading(true);
+      
+      setTimeout(() => {
+        setIsLoading(false);
+        setAvailablePlayers([
+          { username: "seiryuu", hero: "Infernus", team: 2 },
+          { username: "Demui on Twitch :D", hero: "Haze", team: 2 },
+          { username: "Martin_Looter", hero: "Bebop", team: 2 },
+          { username: "Arachnomancer", hero: "Wraith", team: 2 },
+          { username: "Aha haha ha", hero: "McGinnis", team: 2 },
+          { username: "Steve Rambo", hero: "Paradox", team: 2 },
+          { username: "weten", hero: "Lash", team: 3 },
+          { username: "Malorak", hero: "Dynamo", team: 3 },
+          { username: "Kattmaw", hero: "Vindicta", team: 3 },
+          { username: "r0bfish", hero: "Seven", team: 3 },
+          { username: "Wooz", hero: "Ivy", team: 3 },
+          { username: "Arthur Pencilgon", hero: "Abrams", team: 3 },
+        ]);
+        setStep("select_user");
+      }, 1000);
+    }
+  };
 
-    const handleAnalyze = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!username || !filePath) {
-            alert("Please enter your username and select a .dem replay file.");
-            return;
-        }
+  const handleAnalyze = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUsername) return;
 
-        setIsLoading(true);
+    setIsLoading(true);
 
-        // Later: We will invoke our Python script or backend command here via Tauri
-        setTimeout(() => {
-            setIsLoading(false);
-            setReport({
-                match_id: "match_12345",
-                user: username,
-                final_win_prob: 87,
-                outcome: "Victory",
-                timeline_events: [
-                    "From 0:15 to 6:15, your team steadily pulled ahead with no single decisive event, win chance moving from 61% to 77%.",
-                    "Your teammate seiryuu died at 5:54, which hurt your win chance by 11% (now 72%).",
-                    "The enemy Malorak died at 10:10, which boosted your win chance by 5% (now 87%)."
-                ]
-            });
-        }, 1500);
-    };
+    setTimeout(() => {
+      setIsLoading(false);
+      setReport({
+        match_id: fileName || "match_replay",
+        user: selectedUsername,
+        final_win_prob: 87,
+        outcome: "Victory",
+        timeline_events: [
+          "From 0:15 to 6:15, your team steadily pulled ahead with no single decisive event, win chance moving from 61% to 77%.",
+          `Your teammate ${selectedUsername} died at 5:54, which hurt your win chance by 11% (now 72%).`,
+          "The enemy Malorak died at 10:10, which boosted your win chance by 5% (now 87%)."
+        ]
+      });
+      setStep("report");
+    }, 1200);
+  };
 
-    return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 font-sans">
-            <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8">
+  return (
+    <div className="min-h-screen bg-[#0e0f17] text-[#dedede] font-['Inter',sans-serif] flex flex-col items-center justify-center p-8 selection:bg-[#d4af37]/30">
+      
+      {/* Container with Deadlock Brass Border */}
+      <div className="w-full max-w-2xl bg-[#141622] border border-[#2d3148] shadow-[0_0_50px_rgba(0,0,0,0.8)] rounded-lg p-8 relative overflow-hidden">
+        
+        {/* Subtle Top Gold Accent Bar */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#b38938] via-[#f3eb88] to-[#b38938]" />
 
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">
-                        Deadlock Match Analyzer
-                    </h1>
-                    <p className="text-sm text-slate-400 mt-2">
-                        Upload your local .dem replay file and enter your username for an AI-powered breakdown.
-                    </p>
-                </div>
-
-                {!report ? (
-                    /* Input Form */
-                    <form onSubmit={handleAnalyze} className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">
-                                Deadlock Username
-                            </label>
-                            <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                placeholder="e.g. seiryuu"
-                                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-100 placeholder-slate-600 transition"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">
-                                Match Replay (.dem)
-                            </label>
-                            <div className="border-2 border-dashed border-slate-800 hover:border-slate-700 rounded-xl p-6 text-center cursor-pointer transition relative bg-slate-950/50">
-                                <input
-                                    type="file"
-                                    accept=".dem"
-                                    onChange={handleFileMock}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                />
-                                <div className="space-y-2">
-                                    <svg className="mx-auto h-10 w-10 text-slate-500" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                    <p className="text-sm text-slate-300 font-medium">
-                                        {fileName ? <span className="text-indigo-400">{fileName}</span> : "Drop your .dem file here, or browse"}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-semibold rounded-xl shadow-lg transition duration-200 disabled:opacity-50"
-                        >
-                            {isLoading ? "Analyzing Match & Running ML Model..." : "Generate Match Report"}
-                        </button>
-                    </form>
-                ) : (
-                    /* Temporary Report View */
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800">
-                            <div>
-                                <span className="text-xs text-slate-500 uppercase tracking-wider">Outcome</span>
-                                <p className="text-xl font-bold text-emerald-400">{report.outcome} ({report.final_win_prob}%)</p>
-                            </div>
-                            <button
-                                onClick={() => setReport(null)}
-                                className="text-xs px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition"
-                            >
-                                Analyze Another
-                            </button>
-                        </div>
-
-                        <div className="space-y-3">
-                            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Match Narrative</h3>
-                            {report.timeline_events.map((line: string, index: number) => (
-                                <div key={index} className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl text-sm text-slate-300">
-                                    {line}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-            </div>
+        {/* Title Header */}
+        <div className="text-center mb-10">
+          <h1 className="font-['Cinzel',serif] text-4xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-b from-[#fff2a1] via-[#d4af37] to-[#8a6a1c] drop-shadow-md uppercase">
+            Deadlock Match Analyser
+          </h1>
+          <p className="text-xs text-[#8e95b0] lowercase tracking-widest mt-2 font-semibold">
+            so you exactly know which teammates to flame {"<3"}
+          </p>
         </div>
-    );
+
+        {/* STEP 1: FILE UPLOAD */}
+        {step === "upload" && (
+          <div className="space-y-6">
+            <div className="border-2 border-dashed border-[#2d3148] hover:border-[#d4af37]/60 rounded-lg p-10 text-center cursor-pointer transition-all duration-300 bg-[#090a10]/50 group relative">
+              <input
+                type="file"
+                accept=".dem"
+                onChange={handleFileSelected}
+                disabled={isLoading}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              <div className="space-y-4 pointer-events-none">
+                <div className="w-12 h-12 mx-auto rounded-full bg-[#1e2235] border border-[#d4af37]/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <span className="text-[#d4af37] text-xl font-bold">🖹</span>
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-[#f0f0f0] font-['Cinzel',serif]">
+                    {isLoading ? "PARSING REPLAY FILE..." : "SELECT .DEM REPLAY FILE"}
+                  </p>
+                  <p className="text-xs text-[#6e7590] mt-1">
+                    Drag and drop your Deadlock demo file or click to browse
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Replay Path Note */}
+            <div className="text-center text-[11px] text-[#6e7590]">
+              <p className="mb-1 uppercase tracking-wider font-bold">Default Replay Folder:</p>
+              <code className="bg-[#1e2235] border border-[#2d3148] px-3 py-1.5 rounded text-[#a6b0cf] select-all cursor-copy">
+                C:\Program Files (x86)\Steam\steamapps\common\Deadlock\game\citadel\replays
+              </code>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: SELECT USERNAME */}
+        {step === "select_user" && (
+          <form onSubmit={handleAnalyze} className="space-y-6">
+            <div className="flex items-center justify-between bg-[#090a10] px-4 py-3 rounded border border-[#23273a] text-xs">
+              <span className="text-[#8e95b0]">Loaded Replay: <strong className="text-[#f3eb88]">{fileName}</strong></span>
+              <button
+                type="button"
+                onClick={() => setStep("upload")}
+                className="text-[#d4af37] hover:underline uppercase text-[10px] tracking-wider font-semibold"
+              >
+                Change File
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#b8becc] uppercase tracking-wider mb-2 font-['Cinzel',serif]">
+                Select Your Player Name
+              </label>
+              <select
+                value={selectedUsername}
+                onChange={(e) => setSelectedUsername(e.target.value)}
+                className="w-full px-4 py-3 bg-[#090a10] border border-[#2d3148] focus:border-[#d4af37] rounded text-sm text-[#f0f0f0] outline-none transition"
+              >
+                <option value="">-- Choose player from match --</option>
+                {availablePlayers.map((p, idx) => (
+                  <option key={idx} value={p.username}>
+                    {p.username} ({p.hero}) — {p.team === 2 ? "Amber Team" : "Sapphire Team"}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading || !selectedUsername}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-[#8a6a1c] via-[#d4af37] to-[#8a6a1c] hover:brightness-110 text-[#0e0f17] font-extrabold text-sm uppercase tracking-wider rounded transition shadow-md disabled:opacity-40 font-['Cinzel',serif]"
+            >
+              {isLoading ? "Running Model..." : "Generate Analysis Report"}
+            </button>
+          </form>
+        )}
+
+        {/* STEP 3: REPORT DISPLAY */}
+        {step === "report" && report && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center bg-[#090a10] p-4 rounded border border-[#2d3148]">
+              <div>
+                <span className="text-[10px] text-[#6e7590] uppercase tracking-widest block font-bold">Player Report</span>
+                <p className="text-lg font-bold text-[#f3eb88] font-['Cinzel',serif]">{report.user}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-[#6e7590] uppercase tracking-widest block font-bold">Outcome</span>
+                <p className="text-lg font-bold text-[#4ae2a2] font-['Cinzel',serif]">{report.outcome} ({report.final_win_prob}%)</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold text-[#b8becc] uppercase tracking-wider font-['Cinzel',serif]">Match Timeline & Insights</h3>
+              {report.timeline_events.map((line: string, index: number) => (
+                <div key={index} className="p-3 bg-[#090a10]/80 border border-[#23273a] rounded text-xs text-[#d0d4e0] leading-relaxed">
+                  {line}
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => { setReport(null); setStep("upload"); }}
+              className="w-full py-2.5 bg-[#1e2235] hover:bg-[#282d46] border border-[#2d3148] text-[#d4af37] text-xs font-bold uppercase tracking-wider rounded transition"
+            >
+              Analyze Another Match
+            </button>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
 }
 
 export default App;
