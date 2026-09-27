@@ -175,9 +175,9 @@ def find_nearest_events(swing_time, deaths_df, structures_df, mid_boss_df, rejuv
 
 # 4. CORE PIPELINE FUNCTIONS
 def parse_replay_with_java(dem_path, output_json_path, parser_jar_path):
-    print(f"Parsing replay: {dem_path}...")
+    print(f"Parsing replay: {dem_path}...", file=sys.stderr)
     subprocess.run(["java", "-jar", parser_jar_path, dem_path, output_json_path], check=True)
-    print("Parsing complete.")
+    print("Parsing complete.", file=sys.stderr)
 
 
 def analyze_match(json_path, target_username, model_path):
@@ -420,12 +420,37 @@ def analyze_match(json_path, target_username, model_path):
 
 # 5. CLI EXECUTION
 if __name__ == "__main__":
-    # Test it directly by running: python src/analyzer.py
-    # Requires output/parsed_match.json and models/win_probability_lstm_v1.pt to exist
+    import sys
 
-    test_json = PROJECT_ROOT / "replay_parser" / "output" / "parsed_match.json"
-    model_path = PROJECT_ROOT / "models" / "win_probability_lstm_v1.pt"
+    if len(sys.argv) < 3:
+        print(json.dumps({"error": "Missing arguments"}), file=sys.stderr)
+        sys.exit(1)
 
-    report = analyze_match(test_json, target_username="seiryuu", model_path=model_path)
-    print("\n--- FINAL JSON PAYLOAD FOR FRONTEND ---")
-    print(json.dumps(report, indent=2))
+    command = sys.argv[1]
+
+    if command == "get_players":
+        dem_path = sys.argv[2]
+        
+        # we will later call the java parser heree
+        json_path = PROJECT_ROOT / "replay_parser" / "output" / "parsed_match.json"
+        
+        with open(json_path, "r") as f:
+            data = json.load(f)
+            
+        # Extract only what the React frontend needs
+        players = [{"username": p["username"], "team": p["team"]} for p in data["players"]]
+        
+        # Print exactly ONE thing to stdout: the final JSON
+        print(json.dumps(players))
+
+    elif command == "analyze":
+        json_path = sys.argv[2]
+        target_username = sys.argv[3]
+        model_path = PROJECT_ROOT / "models" / "win_probability_lstm_v1.pt"
+
+        try:
+            report = analyze_match(json_path, target_username=target_username, model_path=model_path)
+            print(json.dumps(report))
+        except Exception as e:
+            print(json.dumps({"error": str(e)}))
+            sys.exit(1)

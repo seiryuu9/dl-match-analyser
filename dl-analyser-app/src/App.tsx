@@ -1,8 +1,8 @@
 import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 
 interface Player {
   username: string;
-  hero: string;
   team: number;
 }
 
@@ -17,57 +17,48 @@ function App() {
   const [selectedUsername, setSelectedUsername] = useState("");
   const [report, setReport] = useState<any | null>(null);
 
-  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setFileName(file.name);
-      setFilePath((file as any).path || file.name);
+      const name = file.name;
+      const path = (file as any).path || name;
       
+      setFileName(name);
+      setFilePath(path);
       setIsLoading(true);
       
-      setTimeout(() => {
-        setIsLoading(false);
-        setAvailablePlayers([
-          { username: "seiryuu", hero: "Infernus", team: 2 },
-          { username: "Demui on Twitch :D", hero: "Haze", team: 2 },
-          { username: "Martin_Looter", hero: "Bebop", team: 2 },
-          { username: "Arachnomancer", hero: "Wraith", team: 2 },
-          { username: "Aha haha ha", hero: "McGinnis", team: 2 },
-          { username: "Steve Rambo", hero: "Paradox", team: 2 },
-          { username: "weten", hero: "Lash", team: 3 },
-          { username: "Malorak", hero: "Dynamo", team: 3 },
-          { username: "Kattmaw", hero: "Vindicta", team: 3 },
-          { username: "r0bfish", hero: "Seven", team: 3 },
-          { username: "Wooz", hero: "Ivy", team: 3 },
-          { username: "Arthur Pencilgon", hero: "Abrams", team: 3 },
-        ]);
+      try {
+        const players: Player[] = await invoke("parse_replay_players", { filePath: path });
+        
+        setAvailablePlayers(players);
         setStep("select_user");
-      }, 1000);
+      } catch (error) {
+        console.error("Failed to parse replay:", error);
+        alert("Rust Backend Error: " + error);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleAnalyze = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedUsername) return;
+  const handleAnalyze = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!selectedUsername) return;
 
-    setIsLoading(true);
+      setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      setReport({
-        match_id: fileName || "match_replay",
-        user: selectedUsername,
-        final_win_prob: 87,
-        outcome: "Victory",
-        timeline_events: [
-          "From 0:15 to 6:15, your team steadily pulled ahead with no single decisive event, win chance moving from 61% to 77%.",
-          `Your teammate ${selectedUsername} died at 5:54, which hurt your win chance by 11% (now 72%).`,
-          "The enemy Malorak died at 10:10, which boosted your win chance by 5% (now 87%)."
-        ]
-      });
-      setStep("report");
-    }, 1200);
-  };
+      try {
+        const reportData = await invoke("run_analysis", { username: selectedUsername });
+        
+        setReport(reportData);
+        setStep("report");
+      } catch (error) {
+        console.error("Failed to analyze match:", error);
+        alert("Analysis Error: " + error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
   return (
     <div className="min-h-screen bg-[#0e0f17] text-[#dedede] font-['Inter',sans-serif] flex flex-col items-center justify-center p-8 selection:bg-[#d4af37]/30">
@@ -150,7 +141,7 @@ function App() {
                 <option value="">-- Choose player from match --</option>
                 {availablePlayers.map((p, idx) => (
                   <option key={idx} value={p.username}>
-                    {p.username} ({p.hero}) — {p.team === 2 ? "Amber Team" : "Sapphire Team"}
+                    {p.username} — {p.team === 2 ? "Amber Team" : "Sapphire Team"}
                   </option>
                 ))}
               </select>
