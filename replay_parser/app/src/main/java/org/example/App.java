@@ -366,9 +366,13 @@ public class App {
     }
 
     public static void main(String[] args) throws Exception {
-        String replayPath = "replays/sample.dem";
-        String outputPath = "output/parsed_match.json";
-        new java.io.File("output").mkdirs();
+        String replayPath = args.length > 0 ? args[0] : "replays/sample.dem";
+        String outputPath = args.length > 1 ? args[1] : "output/parsed_match.json";
+
+        java.io.File outputFile = new java.io.File(outputPath);
+        if (outputFile.getParentFile() != null) {
+            outputFile.getParentFile().mkdirs();
+        }
 
         App app = new App();
         new SimpleRunner(new MappedFileSource(replayPath)).runWith(app);

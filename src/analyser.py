@@ -82,7 +82,7 @@ def event_to_phrase(event, user_raw_team):
     if event["type"] == "mid_boss":
         return f"{'your team' if event['team_claimed'] == user_raw_team else 'the enemy'} claimed the Mid Boss Rejuvenator at {format_time(event['time'])}"
     if event["type"] in ["urn_pickup", "rift_capture"]:
-        action = "secured the Urn" if event["type"] == "urn_pickup" else "cashed in the Rift"
+        action = "secured the Urn" if event["type"] == "urn_pickup" else "captured the Rift"
         return f"{'your team' if event['team'] == user_raw_team else 'the enemy'} {action} at {format_time(event['time'])}"
     return None
 
@@ -174,11 +174,25 @@ def find_nearest_events(swing_time, deaths_df, structures_df, mid_boss_df, rejuv
 
 
 # 4. CORE PIPELINE FUNCTIONS
-def parse_replay_with_java(dem_path, output_json_path, parser_jar_path):
+def parse_replay_with_java(dem_path, output_json_path):
+    import sys, subprocess
     print(f"Parsing replay: {dem_path}...", file=sys.stderr)
-    subprocess.run(["java", "-jar", parser_jar_path, dem_path, output_json_path], check=True)
-    print("Parsing complete.", file=sys.stderr)
 
+    java_project_dir = PROJECT_ROOT / "replay_parser"
+
+    try:
+        subprocess.run(
+            ["gradlew.bat", "run", "-q", f'--args="{dem_path}" "{output_json_path}"'],
+            cwd=java_project_dir,
+            check=True,
+            shell=True,
+            stdout=subprocess.DEVNULL,
+            stderr=sys.stderr
+        )
+        print("Parsing complete.", file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        print(f"Java parsing failed: {e}", file=sys.stderr)
+        sys.exit(1)
 
 def analyze_match(json_path, target_username, model_path):
     # 1. Load JSON Data
@@ -295,6 +309,10 @@ def analyze_match(json_path, target_username, model_path):
     merged["win_prob_smoothed"] = merged["win_prob_own"].rolling(window=3, center=True, min_periods=1).mean()
     merged["win_prob_delta_smoothed"] = merged["win_prob_smoothed"].diff(periods=2)
 
+    # Pre-calculate final outcome to evaluate team perspective correctly
+    final_prob_val = get_win_prob_pct(merged["win_prob_smoothed"].iloc[-1])
+    is_victory = final_prob_val >= 50
+
     # 7. Find Swings
     thresholds = merged["game_time_s"].apply(get_dynamic_threshold)
     swings = merged[merged["win_prob_delta_smoothed"].abs() >= thresholds]
@@ -316,7 +334,7 @@ def analyze_match(json_path, target_username, model_path):
         timeline.append({"time": s["swing_time_s"], "kind": "swing", "data": s})
     for _, mb in mid_boss_df.iterrows():
         matching = rejuvenator_df[(rejuvenator_df["team"] == mb["team_claimed"]) & (
-                    rejuvenator_df["game_time_s"] >= mb["killed_time_s"])].sort_values("game_time_s")
+                rejuvenator_df["game_time_s"] >= mb["killed_time_s"])].sort_values("game_time_s")
         c_time = matching["game_time_s"].iloc[0] if not matching.empty else None
         timeline.append({"time": mb["killed_time_s"], "kind": "mid_boss", "data": {"team_claimed": mb["team_claimed"],
                                                                                    "credits_used": credit_counts_by_claim_time.get(
@@ -389,20 +407,64 @@ def analyze_match(json_path, target_username, model_path):
                 lines.append(line)
                 quiet_start_time, quiet_start_prob = t, prob_pct
 
-            if t >= (merged["game_time_s"].max() / 2) and not is_pos and pol == -1:
-                if biggest_swing is None or delta_pct > biggest_swing["delta_pct"]:
-                    biggest_swing = {"time": trig["time"] if trig else t, "delta_pct": delta_pct,
-                                     "phrase": event_phrase}
+            # Track the most impactful swing matching your team's outcome perspective in the late game
+            if t >= (merged["game_time_s"].max() / 2):
+                is_target_swing = (not is_victory and not is_pos and pol == -1) or (is_victory and is_pos and pol >= 0)
+                if is_target_swing and event_phrase:
+                    if biggest_swing is None or delta_pct > biggest_swing["delta_pct"]:
+                        biggest_swing = {"time": trig["time"] if trig else t, "delta_pct": delta_pct, "phrase": event_phrase}
 
             last_known_prob = prob_pct
 
     flush_quiet(merged["game_time_s"].max(), last_known_prob)
-    final_prob = get_win_prob_pct(merged["win_prob_smoothed"].iloc[-1])
+    final_prob = final_prob_val
     lines.append(
         f"\nBy the end of the game, your team {'led' if final_prob >= 50 else 'trailed'} with a {final_prob:.0f}% win chance.")
-    if biggest_swing:
+
+    if biggest_swing and biggest_swing['phrase']:
+        swing_t = biggest_swing['time']
+
+        # Look for subsequent domino events in the 90 seconds following the swing
+        after_deaths = deaths_df[(deaths_df["game_time_s"] > swing_t) & (deaths_df["game_time_s"] <= swing_t + 90)]
+        after_structs = structures_df[
+            (structures_df["destroyed_time_s"] > swing_t) & (structures_df["destroyed_time_s"] <= swing_t + 90)]
+        after_boss = mid_boss_df[
+            (mid_boss_df["killed_time_s"] > swing_t) & (mid_boss_df["killed_time_s"] <= swing_t + 90)]
+
+        consequences = []
+        if not after_deaths.empty:
+            count = len(after_deaths)
+            consequences.append(f"triggered a fight where {count} teammate{'s' if count > 1 else ''} fell")
+        if not after_structs.empty:
+            s_name = structure_name(after_structs.iloc[0])
+            consequences.append(f"let the enemy destroy a {s_name}")
+        if not after_boss.empty:
+            consequences.append("allowed the enemy to challenge Mid Boss")
+
+        if consequences:
+            chain_text = ", which " + ", and ".join(consequences) + "."
+        else:
+            chain_text = ", permanently shifting map pressure and objective control for the remainder of the match."
+
+        # Clean phrase extraction without duplicating timestamps
+        raw_phrase = biggest_swing['phrase']
+        if " at " in raw_phrase:
+            clean_phrase = raw_phrase.split(" at ")[0]
+        else:
+            clean_phrase = raw_phrase
+
+        if is_victory:
+            lines.append(
+                f"The winning turning point came at {format_time(swing_t)}, marked by a massive {biggest_swing['delta_pct']:.0f}% positive surge when {clean_phrase}{chain_text}"
+            )
+        else:
+            lines.append(
+                f"The fatal turning point came at {format_time(swing_t)}, marked by a massive {biggest_swing['delta_pct']:.0f}% negative swing when {clean_phrase}{chain_text}"
+            )
+    else:
         lines.append(
-            f"The fatal turning point came when {biggest_swing['phrase'] or 'a shift in momentum'}, a {biggest_swing['delta_pct']:.0f}% swing that let the enemy press their advantage from there.")
+            f"The match was decided by a gradual accumulation of pressure rather than a single isolated turning point."
+        )
 
     chart_data = [
         {"time_m": round(row["game_time_s"] / 60, 1), "win_prob": round(get_win_prob_pct(row["win_prob_smoothed"]), 1)}
@@ -430,27 +492,30 @@ if __name__ == "__main__":
 
     if command == "get_players":
         dem_path = sys.argv[2]
-        
-        # we will later call the java parser heree
-        json_path = PROJECT_ROOT / "replay_parser" / "output" / "parsed_match.json"
-        
+        dem_stem = Path(dem_path).stem
+        json_path = PROJECT_ROOT / "replay_parser" / "output" / f"parsed_{dem_stem}.json"
+
+        parse_replay_with_java(dem_path, json_path)
+
         with open(json_path, "r") as f:
             data = json.load(f)
-            
-        # Extract only what the React frontend needs
+
         players = [{"username": p["username"], "team": p["team"]} for p in data["players"]]
-        
-        # Print exactly ONE thing to stdout: the final JSON
         print(json.dumps(players))
 
     elif command == "analyze":
-        json_path = sys.argv[2]
+        dem_path = sys.argv[2]
         target_username = sys.argv[3]
+
+        dem_stem = Path(dem_path).stem
+        json_path = PROJECT_ROOT / "replay_parser" / "output" / f"parsed_{dem_stem}.json"
         model_path = PROJECT_ROOT / "models" / "win_probability_lstm_v1.pt"
 
         try:
+            parse_replay_with_java(dem_path, json_path)
             report = analyze_match(json_path, target_username=target_username, model_path=model_path)
             print(json.dumps(report))
+
         except Exception as e:
-            print(json.dumps({"error": str(e)}))
+            print(json.dumps({"error": str(e)}), file=sys.stderr)
             sys.exit(1)
