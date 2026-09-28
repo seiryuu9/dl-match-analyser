@@ -1,9 +1,12 @@
-# Python / Virtual Environment
+# Python / Virtual Environment / PyInstaller
 .venv/
 __pycache__/
 *.pyc
 .idea/
 data/
+build/
+dist/
+*.spec
 
 # Java / Replay Parser
 replay_parser/.gradle/
@@ -19,5 +22,7 @@ dl-analyser-app/dist/
 dl-analyser-app/dist-ssr/
 dl-analyser-app/*.local
 
-# Tauri Rust Build Artifacts
+# Tauri Rust Build Artifacts & Binaries
 dl-analyser-app/src-tauri/target/
+dl-analyser-app/src-tauri/binaries/*.exe
+dl-analyser-app/src-tauri/binaries/*.jar

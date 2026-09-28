@@ -8,6 +8,7 @@
 plugins {
     // Apply the application plugin to add support for building a CLI application in Java.
     application
+    id("com.gradleup.shadow") version "9.0.1"
 }
 
 repositories {
@@ -46,4 +47,10 @@ tasks.named<Test>("test") {
 
 tasks.named<JavaExec>("run") {
     workingDir = rootProject.projectDir
+}
+
+tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
+    archiveBaseName.set("replay-parser")
+    archiveClassifier.set("")
+    archiveVersion.set("")
 }
