@@ -145,6 +145,7 @@ function App() {
               <code className="bg-[#1e2235] border border-[#2d3148] px-3 py-1.5 rounded text-[#a6b0cf] select-all cursor-copy">
                 C:\Program Files (x86)\Steam\steamapps\common\Deadlock\game\citadel\replays
               </code>
+              <p className="mt-2 tracking-wider">you need to have a replay downloaded in-game for it to appear there</p>
             </div>
           </div>
         )}
